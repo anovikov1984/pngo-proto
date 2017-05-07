@@ -4,7 +4,10 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"io/ioutil"
+	"log"
 	"net/http"
+	"net/url"
 )
 
 type Endpoint interface {
@@ -91,6 +94,7 @@ func (e *Publish) Async() {
 
 	go func() {
 		url := e.buildUrl(e.message)
+		log.Println(url)
 		resp, err := doRequest(url)
 		if err != nil {
 			e.errorChannel <- err
@@ -101,8 +105,9 @@ func (e *Publish) Async() {
 }
 
 func (e *Publish) buildUrl(msg interface{}) string {
-	strMsg, _ := json.Marshal(msg)
-	return "http://ps.pndsn.com/publish/pub-c-739aa0fc-3ed5-472b-af26-aca1b333ec52/sub-c-33f55052-190b-11e6-bfbc-02ee2ddab7fe/0/ch/0/%22" + string(strMsg) + "%22"
+	bytes, _ := json.Marshal(msg)
+	strMsg := url.PathEscape(string(bytes))
+	return "http://ps.pndsn.com/publish/pub-c-739aa0fc-3ed5-472b-af26-aca1b333ec52/sub-c-33f55052-190b-11e6-bfbc-02ee2ddab7fe/0/ch/0/" + string(strMsg) + "?uuid=gotest"
 }
 
 func (e *Publish) PnChannel() chan<- interface{} {
@@ -114,9 +119,11 @@ func (e *Publish) PnChannel() chan<- interface{} {
 	ch := make(chan interface{})
 
 	go func() {
+		log.Println("Waiting for channels")
 		for msg := range ch {
 
 			url := e.buildUrl(msg)
+			log.Println(url)
 			resp, err := doRequest(url)
 			if err != nil {
 				e.errorChannel <- err
@@ -130,5 +137,16 @@ func (e *Publish) PnChannel() chan<- interface{} {
 }
 
 func doRequest(url string) (interface{}, error) {
-	return http.Get(url)
+	resp, err := http.Get(url)
+	if err != nil {
+		return nil, err
+	}
+
+	body, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+
+	log.Println(string(body))
+	return string(body), nil
 }
