@@ -36,8 +36,15 @@ type Publish struct {
 	message string
 	channel string
 
+	ctx context.Context
+
 	successChannel chan interface{}
 	errorChannel   chan error
+}
+
+func (e *Publish) Context(ctx context.Context) *Publish {
+	e.ctx = ctx
+	return e
 }
 
 func (e *Publish) Channel(channel string) *Publish {

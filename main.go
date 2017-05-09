@@ -1,8 +1,10 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"log"
+	"time"
 
 	"./endpoints"
 )
@@ -30,11 +32,10 @@ type PNConfiguration struct {
 func main() {
 	pnconf = &PNConfiguration{}
 	pubnub = NewPubNub(pnconf)
-	// ctx := context.Background()
 
 	// FirstWay()
-	// SecondWay()
-	ThirdWay()
+	SecondWay()
+	//ThirdWay()
 }
 
 // Sync() generates a synchronous endpoit call and returns both response and
@@ -48,34 +49,55 @@ func FirstWay() {
 	fmt.Println("1st way result", ok)
 }
 
+// async
 func SecondWay() {
+	timeout := 2
+	ctx, cancel := context.WithTimeout(context.Background(),
+		time.Duration(timeout)*time.Second)
+
+	defer cancel()
+
 	ok := make(chan interface{})
 	err := make(chan error)
 
-	pubnub.Publish().Channel("news").Success(ok).Error(err).Async()
-	printResult(1, ok, err)
+	pubnub.Publish().Context(ctx).Channel("news").Success(ok).Error(err).Async()
+	printResult(1, ok, err, ctx)
 }
 
 // only for publish
 func ThirdWay() {
+	timeout := 2
+	ctx, cancel := context.WithTimeout(context.Background(),
+		time.Duration(timeout)*time.Second)
+	defer cancel()
+
 	ok := make(chan interface{})
 	err := make(chan error)
 
 	ch := pubnub.Publish().Channel("news").Success(ok).Error(err).PnChannel()
-	go printResult(2, ok, err)
+	go printResult(2, ok, err, ctx)
 
 	ch <- 2
 	ch <- 3
 
+	// TODO: don't forget to close channel to stop listener loop
+	close(ch)
 }
 
-func printResult(times int, ok chan interface{}, err chan error) {
+func SubscribeExample() {
+}
+
+func printResult(times int, ok chan interface{}, err chan error,
+	ctx context.Context) {
+
 	for i := 0; i < times; i++ {
 		select {
 		case res := <-ok:
 			fmt.Println(res)
 		case er := <-err:
 			fmt.Println(er)
+		case <-ctx.Done():
+			fmt.Println("timeout")
 		}
 	}
 }
